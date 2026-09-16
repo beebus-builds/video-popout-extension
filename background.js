@@ -476,6 +476,107 @@ async function proCommand(tabId, targets, command, value) {
   return { ok: true, count };
 }
 
+function ytIdFromUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtu.be")) {
+      const id = u.pathname.slice(1).split("/")[0].split("?")[0];
+      if (id && id.length >= 6) return id;
+    }
+    if (u.hostname.includes("youtube.com")) {
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      const m = u.pathname.match(/\/embed\/([^/?]+)/);
+      if (m) return m[1];
+      const m2 = u.pathname.match(/\/shorts\/([^/?]+)/);
+      if (m2) return m2[1];
+    }
+  } catch { return ""; }
+  return "";
+}
+
+async function collectAllTabs() {
+  const allTabs = await chrome.tabs.query({});
+  const tabs = allTabs.filter((t) => t.url && !isRestrictedUrl(t.url));
+  const results = [];
+  for (const tab of tabs) {
+    const found = await collectVideos(tab.id);
+    const ytid = ytIdFromUrl(tab.url || "");
+    results.push({
+      id: tab.id,
+      title: tab.title || tab.url || `Tab ${tab.id}`,
+      url: tab.url || "",
+      ytid: ytid || "",
+      videos: found.ok ? found.videos : [],
+      ok: found.ok,
+      docPipOpen: !!found.docPipOpen
+    });
+  }
+  results.sort((a, b) => (b.videos.length - a.videos.length) || (b.videos.some((v) => v.playing) ? 1 : 0) - (a.videos.some((v) => v.playing) ? 1 : 0));
+  return results;
+}
+
+async function popAllTabsViaCapture(tabIds) {
+  let okCount = 0;
+  let errors = [];
+  for (const tabId of tabIds) {
+    try {
+      await openCapture(tabId);
+      okCount++;
+      await new Promise((r) => setTimeout(r, 280));
+    } catch (e) {
+      errors.push(e?.message || "Failed");
+    }
+  }
+  if (!okCount) return { ok: false, error: errors[0] || "Could not open floating windows. Try granting site access in Options." };
+  return { ok: true, count: okCount };
+}
+
+async function popAllTabsViaPip(tabIds) {
+  let okCount = 0;
+  let lastError = "";
+  let pipLimitedHit = false;
+  for (const tabId of tabIds) {
+    try {
+      const res = await toggleInTab(tabId, 0);
+      if (res?.ok) {
+        okCount++;
+        await new Promise((r) => setTimeout(r, 320));
+      } else {
+        lastError = res?.error || "Failed";
+        if (lastError.toLowerCase().includes("picture-in-picture") && lastError.toLowerCase().includes("already")) pipLimitedHit = true;
+      }
+    } catch (e) {
+      lastError = e?.message || "Failed";
+    }
+  }
+  if (!okCount) return { ok: false, error: lastError || "No video could be popped. Try Capture windows or Video Wall." };
+  if (pipLimitedHit && okCount === 1 && tabIds.length > 1) {
+    return { ok: true, count: okCount, warning: "Chrome allows one native PiP at a time — only one stayed open. Use Floating windows (Capture) or Video Wall for 10+ at once." };
+  }
+  return { ok: true, count: okCount };
+}
+
+async function openWall(ids) {
+  let list = (ids || []).map((s) => String(s).trim()).filter(Boolean);
+  if (!list.length) {
+    const tabs = await chrome.tabs.query({});
+    const ytIds = tabs.map((t) => ytIdFromUrl(t.url || "")).filter(Boolean);
+    list = [...new Set(ytIds)];
+  }
+  if (!list.length) return { ok: false, error: "No YouTube videos found. Open YouTube tabs like the links you sent, then try again." };
+  if (list.length > 24) list = list.slice(0, 24);
+  try {
+    await chrome.storage.session.set({ wallIds: list });
+  } catch { return { ok: false, error: "Could not prepare the wall." }; }
+  try {
+    await chrome.windows.create({ url: chrome.runtime.getURL("wall.html"), type: "popup", width: 1280, height: 760, focused: true });
+  } catch (e) {
+    return { ok: false, error: e?.message || "Could not open the wall window." };
+  }
+  return { ok: true, count: list.length };
+}
+
 chrome.tabs.onActivated.addListener((info) => {
   const previous = lastActiveTabId;
   lastActiveTabId = info.tabId;
@@ -672,6 +773,52 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse(await handleCaptureReady(sender));
       } catch (error) {
         sendResponse({ ok: false, error: error?.message || "Capture failed." });
+      }
+      return;
+    }
+    if (msg.type === "LIST_ALL_TABS") {
+      try {
+        const hasTabs = await chrome.permissions.contains({ origins: ["<all_urls>"] }).catch(() => false);
+        if (!hasTabs) {
+          sendResponse({ ok: false, error: "Grant site access in Options to scan all tabs, or open YouTube tabs and use Video Wall.", tabs: [] });
+          return;
+        }
+        sendResponse({ ok: true, tabs: await collectAllTabs() });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "Could not scan tabs.", tabs: [] });
+      }
+      return;
+    }
+    if (msg.type === "POP_ALL_TABS") {
+      try {
+        const hasHosts = await chrome.permissions.contains({ origins: ["<all_urls>"] }).catch(() => false);
+        if (!hasHosts) {
+          const granted = await chrome.permissions.request({ origins: ["<all_urls>"] }).catch(() => false);
+          if (!granted) throw new Error("Site access is needed to pop videos from other tabs. Grant it in Options and try again.");
+        }
+        let tabIds = Array.isArray(msg.tabIds) ? msg.tabIds.filter((n) => Number.isInteger(n)) : null;
+        if (!tabIds || !tabIds.length) {
+          const all = await collectAllTabs();
+          let filtered = all.filter((t) => t.videos.length);
+          if (msg.youtubeOnly) filtered = filtered.filter((t) => t.ytid);
+          if (msg.limit) filtered = filtered.slice(0, msg.limit);
+          tabIds = filtered.map((t) => t.id);
+        }
+        if (!tabIds.length) throw new Error("No tabs with videos found. Open the YouTube links you sent, play each, then try again.");
+        const mode = msg.mode === "capture" ? "capture" : "pip";
+        const res = mode === "capture" ? await popAllTabsViaCapture(tabIds) : await popAllTabsViaPip(tabIds);
+        sendResponse(res);
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "Could not pop all tabs." });
+      }
+      return;
+    }
+    if (msg.type === "OPEN_WALL") {
+      try {
+        const ids = Array.isArray(msg.ids) ? msg.ids : null;
+        sendResponse(await openWall(ids));
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "Could not open wall." });
       }
       return;
     }

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Video Popout (Picture-in-Picture)",
-  "version": "1.2.0",
-  "description": "Pop any video into a floating always-on-top window. Picker with thumbnails, hover button, multi-popout, whole-tab capture, and pro controls.",
-  "permissions": ["contextMenus", "scripting", "activeTab", "storage", "tabCapture", "webNavigation", "sidePanel", "alarms", "downloads"],
+  "version": "1.3.0",
+  "description": "Pop any video into a floating window — even 10+ YouTube tabs at once via batch popout or video wall.",
+  "permissions": ["contextMenus", "scripting", "activeTab", "storage", "tabCapture", "webNavigation", "sidePanel", "alarms", "downloads", "tabs"],
   "optional_host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"

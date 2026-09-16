@@ -13,6 +13,14 @@ const siteLabel = document.getElementById("site-label");
 const siteRuleSel = document.getElementById("site-rule");
 const sleepInput = document.getElementById("sleep");
 const sleepStatus = document.getElementById("sleep-status");
+const scanAllBtn = document.getElementById("scan-all");
+const everywhereList = document.getElementById("everywhere-list");
+const everywhereStatus = document.getElementById("everywhere-status");
+const popYoutubePipBtn = document.getElementById("pop-youtube-pip");
+const popAllCaptureBtn = document.getElementById("pop-all-capture");
+const openWallBtn = document.getElementById("open-wall");
+let allTabs = [];
+const everywhereSelected = new Set();
 
 const SPEEDS = [1, 1.25, 1.5, 2, 0.5];
 let speedIdx = 0;
@@ -296,6 +304,104 @@ siteRuleSel.addEventListener("change", async () => {
 
 optionsBtn.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
+});
+
+function renderEverywhere() {
+  everywhereList.innerHTML = "";
+  if (!allTabs.length) {
+    everywhereList.innerHTML = `<div class="sub">No tabs with videos yet. Open your YouTube links like the two you sent, play each, then Scan again.</div>`;
+    return;
+  }
+  for (const tab of allTabs) {
+    const row = document.createElement("label");
+    row.className = "everywhere-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = everywhereSelected.has(tab.id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) everywhereSelected.add(tab.id);
+      else everywhereSelected.delete(tab.id);
+    });
+    const t = document.createElement("span");
+    t.className = "t";
+    const ytid = tab.ytid ? ` · ${tab.ytid}` : "";
+    t.textContent = `${tab.title.slice(0, 42)}${ytid}`;
+    t.title = `${tab.title}\n${tab.url}`;
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = tab.videos.length ? `${tab.videos.length} video${tab.videos.length===1?"":"s"}` : "no video";
+    row.appendChild(cb);
+    row.appendChild(t);
+    row.appendChild(badge);
+    everywhereList.appendChild(row);
+  }
+}
+
+scanAllBtn.addEventListener("click", async () => {
+  scanAllBtn.disabled = true;
+  everywhereStatus.textContent = "Scanning all tabs…";
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "LIST_ALL_TABS" });
+    if (!res?.ok) throw new Error(res?.error || "Could not scan.");
+    allTabs = res.tabs || [];
+    everywhereSelected.clear();
+    for (const t of allTabs) {
+      if (t.videos.length && !t.videos.every((v) => v.isAd)) everywhereSelected.add(t.id);
+    }
+    if (!allTabs.length) everywhereStatus.textContent = "No tabs with videos. Open the YouTube links first.";
+    else {
+      const yt = allTabs.filter((t) => t.ytid).length;
+      everywhereStatus.textContent = `${allTabs.length} tabs scanned${yt ? ` · ${yt} YouTube` : ""} — tick and use the buttons below.`;
+    }
+    renderEverywhere();
+  } catch (e) {
+    everywhereStatus.textContent = e.message || "Could not scan.";
+  } finally {
+    scanAllBtn.disabled = false;
+  }
+});
+
+async function popEverywhere(mode, youtubeOnly) {
+  const ids = [...everywhereSelected];
+  if (!ids.length && allTabs.length) {
+    for (const t of allTabs) {
+      if (youtubeOnly && !t.ytid) continue;
+      if (t.videos.length) ids.push(t.id);
+    }
+  }
+  if (!ids.length) {
+    everywhereStatus.textContent = "Select at least one tab — open the YouTube links you sent and Scan again.";
+    return;
+  }
+  everywhereStatus.textContent = mode === "capture" ? `Floating ${ids.length} windows…` : `Popping ${ids.length} tabs…`;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "POP_ALL_TABS", tabIds: ids, mode, youtubeOnly: !!youtubeOnly });
+    if (!res?.ok) throw new Error(res?.error || "Could not pop.");
+    const warn = res.warning ? ` — ${res.warning}` : "";
+    everywhereStatus.textContent = `Done — ${res.count} tab${res.count===1?"":"s"}${warn}`;
+    setStatus(`Everywhere: ${res.count} done.${warn ? " " + res.warning : ""}`, !!warn);
+  } catch (e) {
+    everywhereStatus.textContent = e.message || "Could not pop.";
+  }
+}
+
+popYoutubePipBtn.addEventListener("click", () => { void popEverywhere("pip", true); });
+popAllCaptureBtn.addEventListener("click", () => { void popEverywhere("capture", false); });
+openWallBtn.addEventListener("click", async () => {
+  const ids = [...everywhereSelected].map((id) => {
+    const t = allTabs.find((x) => x.id === id);
+    return t ? t.ytid : "";
+  }).filter(Boolean);
+  const payload = ids.length ? ids : undefined;
+  everywhereStatus.textContent = "Opening wall…";
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "OPEN_WALL", ids: payload });
+    if (!res?.ok) throw new Error(res?.error || "Could not open wall.");
+    everywhereStatus.textContent = `Wall opened with ${res.count} videos — one window for 10+ at once.`;
+    window.close();
+  } catch (e) {
+    everywhereStatus.textContent = e.message || "Could not open wall.";
+  }
 });
 
 (async () => {

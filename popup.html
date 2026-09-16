@@ -45,6 +45,22 @@
   </div>
   <button id="capture" class="secondary">Pop out entire tab</button>
   <button id="theater" class="secondary">Open Theater</button>
+
+  <div class="everywhere">
+    <div class="everywhere-head">
+      <strong>Everywhere</strong>
+      <small>Pop 10+ YouTube links at once. Open them first, then choose below.</small>
+    </div>
+    <button id="scan-all" class="secondary small">Scan all tabs</button>
+    <div id="everywhere-list" class="everywhere-list"></div>
+    <div class="bulk" style="display:flex;gap:6px">
+      <button id="pop-youtube-pip" class="secondary small" title="Try PiP on each YouTube tab — Chrome keeps one PiP open, so this shows the limit">Pop YouTube (PiP)</button>
+      <button id="pop-all-capture" class="secondary small" title="Floating windows via tab capture — works for 10+">Float all (Capture)</button>
+    </div>
+    <button id="open-wall" class="primary small" title="One wall window with all YouTube embeds — best for 10+">Open YouTube Wall (10+)</button>
+    <div id="everywhere-status" class="sub"></div>
+  </div>
+
   <div class="site-row">
     <span id="site-label">This site: default</span>
     <select id="site-rule" title="Per-site rule">
@@ -56,7 +72,7 @@
   <div class="footer">
     <div class="hints">
       <div><kbd>Alt</kbd>+<kbd>P</kbd> pops the video · Side Panel is your theater</div>
-      <div>Chrome allows one native popout; multi opens one combined window.</div>
+      <div>Chrome allows one native PiP — use Capture or Wall for 10+.</div>
     </div>
     <button id="options" class="link">Options</button>
   </div>

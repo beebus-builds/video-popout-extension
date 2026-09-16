@@ -160,5 +160,92 @@ document.getElementById("sleep-cancel").addEventListener("click", async () => {
   sleepStatus.textContent = "";
 });
 
+const scanAllBtn = document.getElementById("scan-all");
+const everywhereList = document.getElementById("everywhere-list");
+const everywhereStatus = document.getElementById("everywhere-status");
+let allTabs = [];
+const everywhereSelected = new Set();
+
+function renderEverywhere() {
+  everywhereList.innerHTML = "";
+  if (!allTabs.length) {
+    everywhereList.innerHTML = `<div class="sub">Open your YouTube links, then Scan.</div>`;
+    return;
+  }
+  for (const tab of allTabs) {
+    const row = document.createElement("label");
+    row.style.cssText = "display:flex;align-items:center;gap:6px;font-size:11px;border:1px solid rgba(128,128,128,0.25);border-radius:6px;padding:4px 6px;background:rgba(255,255,255,0.06)";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = everywhereSelected.has(tab.id);
+    cb.addEventListener("change", () => { if (cb.checked) everywhereSelected.add(tab.id); else everywhereSelected.delete(tab.id); });
+    const t = document.createElement("span");
+    t.style.cssText = "flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+    t.textContent = tab.title.slice(0, 44) + (tab.ytid ? ` · ${tab.ytid}` : "");
+    t.title = `${tab.title}\n${tab.url}`;
+    const badge = document.createElement("span");
+    badge.style.cssText = "font-size:10px;color:#9ca3af";
+    badge.textContent = tab.videos.length ? `${tab.videos.length} vid` : "no vid";
+    row.appendChild(cb); row.appendChild(t); row.appendChild(badge);
+    everywhereList.appendChild(row);
+  }
+}
+
+scanAllBtn.addEventListener("click", async () => {
+  scanAllBtn.disabled = true;
+  everywhereStatus.textContent = "Scanning…";
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "LIST_ALL_TABS" });
+    if (!res?.ok) throw new Error(res?.error || "Could not scan.");
+    allTabs = res.tabs || [];
+    everywhereSelected.clear();
+    for (const t of allTabs) if (t.videos.length) everywhereSelected.add(t.id);
+    const yt = allTabs.filter((t) => t.ytid).length;
+    everywhereStatus.textContent = `${allTabs.length} tabs${yt ? ` · ${yt} YouTube` : ""}`;
+    renderEverywhere();
+  } catch (e) {
+    everywhereStatus.textContent = e.message || "Scan failed.";
+  } finally {
+    scanAllBtn.disabled = false;
+  }
+});
+
+async function popEverywhere(mode, youtubeOnly) {
+  let ids = [...everywhereSelected];
+  if (!ids.length) {
+    for (const t of allTabs) {
+      if (youtubeOnly && !t.ytid) continue;
+      if (t.videos.length) ids.push(t.id);
+    }
+  }
+  if (!ids.length) { everywhereStatus.textContent = "No tabs selected."; return; }
+  everywhereStatus.textContent = mode === "capture" ? `Floating ${ids.length}…` : `Popping ${ids.length}…`;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "POP_ALL_TABS", tabIds: ids, mode, youtubeOnly: !!youtubeOnly });
+    if (!res?.ok) throw new Error(res?.error || "Failed.");
+    const w = res.warning ? ` — ${res.warning}` : "";
+    everywhereStatus.textContent = `Done ${res.count}${w}`;
+    setStatus(`Everywhere ${res.count}${w}`, !!w);
+  } catch (e) {
+    everywhereStatus.textContent = e.message || "Failed.";
+  }
+}
+
+document.getElementById("pop-youtube-pip").addEventListener("click", () => { void popEverywhere("pip", true); });
+document.getElementById("pop-all-capture").addEventListener("click", () => { void popEverywhere("capture", false); });
+document.getElementById("open-wall").addEventListener("click", async () => {
+  const ids = [...everywhereSelected].map((id) => {
+    const t = allTabs.find((x) => x.id === id);
+    return t ? t.ytid : "";
+  }).filter(Boolean);
+  everywhereStatus.textContent = "Opening wall…";
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "OPEN_WALL", ids: ids.length ? ids : undefined });
+    if (!res?.ok) throw new Error(res?.error || "Failed.");
+    everywhereStatus.textContent = `Wall ${res.count} videos.`;
+  } catch (e) {
+    everywhereStatus.textContent = e.message || "Failed.";
+  }
+});
+
 void refresh();
 setInterval(() => { void updateSleepStatus(); }, 15000);

@@ -129,6 +129,45 @@ button.ghost {
 
 button.ghost:hover { background: rgba(128,128,128,0.15); }
 
+.everywhere {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(225,29,72,0.25);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(225,29,72,0.06);
+}
+
+.everywhere-head { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.everywhere-head strong { font-size: 12px; }
+.everywhere-list {
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.everywhere-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  border: 1px solid rgba(128,128,128,0.25);
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: rgba(255,255,255,0.6);
+}
+
+.everywhere-item input { width: 14px; height: 14px; }
+.everywhere-item .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.everywhere-item .badge { font-size: 10px; color: #9ca3af; white-space: nowrap; }
+
+@media (prefers-color-scheme: dark) {
+  .everywhere-item { background: rgba(255,255,255,0.06); }
+}
+
 button.small {
   flex: 1;
   padding: 7px 8px;
