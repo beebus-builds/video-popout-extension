@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Welcome to Video Popout</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { max-width: 640px; margin: 0 auto; padding: 24px; line-height: 1.5; }
+    h1 { font-size: 22px; }
+    .card { border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; padding: 14px; margin: 12px 0; }
+    button.primary { background: #e11d48; color: #fff; border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+    button.secondary { border: 1px solid rgba(128,128,128,0.4); background: transparent; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+    small { color: #9ca3af; }
+    ul { padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <h1>Welcome to Video Popout</h1>
+  <p>Pop any video into a floating window. The extension only runs when you click it — no background tracking.</p>
+  <div class="card">
+    <strong>How to use</strong>
+    <ul>
+      <li>Click the toolbar button or press <kbd>Alt+P</kbd> to pop the playing video.</li>
+      <li>Hover any video for a quick “Pop out” button.</li>
+      <li>Tick multiple videos → “Pop selected” for one combined window (Chrome allows one native PiP, so we combine them).</li>
+      <li>“Pop entire tab” mirrors the whole tab; DRM videos may appear black.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <strong>Permissions</strong>
+    <p><small>ActiveTab lets the button work on the tab you click. Optional “all sites” access is only needed if you turn on automatic popout for playlists or tab-switch. You can grant or revoke it in Options at any time. The extension never collects or shares browsing data.</small></p>
+    <button id="grant" class="primary">Grant site access for automation</button>
+    <button id="continue" class="secondary">Continue without granting</button>
+    <p id="status" style="font-size:12px;color:#22c55e;min-height:16px"></p>
+  </div>
+  <p><a href="privacy.html">Privacy</a> · <a href="options.html">Options</a></p>
+  <script>
+    const s = document.getElementById("status");
+    document.getElementById("grant").addEventListener("click", async () => {
+      try {
+        const ok = await chrome.permissions.request({ origins: ["<all_urls>"] });
+        s.textContent = ok ? "Granted — automation will work after you enable it in Options." : "Not granted — you can still use manual popout.";
+        s.style.color = ok ? "#22c55e" : "#ef4444";
+      } catch { s.textContent = "Could not request permission."; s.style.color = "#ef4444"; }
+    });
+    document.getElementById("continue").addEventListener("click", () => { s.textContent = "You’re all set — open a video and try Alt+P."; });
+  </script>
+</body>
+</html>

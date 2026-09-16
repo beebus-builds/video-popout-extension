@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tab Popout</title>
+  <link rel="stylesheet" href="capture.css" />
+</head>
+<body>
+  <div class="bar">
+    <span id="status" class="status">Connecting…</span>
+    <span class="spacer"></span>
+    <button id="sound" class="ghost" disabled>Enable sound</button>
+    <button id="pip" class="ghost" disabled>Always on top</button>
+    <button id="stop" class="ghost">Close</button>
+  </div>
+  <video id="preview" autoplay playsinline muted></video>
+  <div id="note" class="note">Shows the whole tab, including navigation. Not interactive — use the original tab to click. DRM videos may appear black. Use “Always on top” for a floating window.</div>
+  <script src="capture.js"></script>
+</body>
+</html>

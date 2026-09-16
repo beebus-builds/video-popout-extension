@@ -1,0 +1,87 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body { margin: 0; padding: 24px; max-width: 560px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+.lede { color: #9ca3af; margin: 0 0 16px; font-size: 13px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.row span { display: flex; flex-direction: column; gap: 2px; }
+.row small { color: #9ca3af; font-size: 12px; }
+.row input[type="checkbox"] { width: 18px; height: 18px; }
+
+.perm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #9ca3af;
+  background: rgba(225, 29, 72, 0.08);
+  border: 1px solid rgba(225, 29, 72, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+button.secondary {
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+h2 { font-size: 15px; margin: 20px 0 4px; }
+
+.rules { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+.rule-row .origin { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rule-row .actions { display: flex; gap: 6px; align-items: center; }
+.rule-row select {
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+}
+
+.row select {
+  font-size: 12px;
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+}
+
+.status { font-size: 12px; color: #22c55e; min-height: 16px; margin-top: 8px; }
+.status.error { color: #ef4444; }
+
+@media (prefers-color-scheme: dark) {
+  body { background: #111214; color: #e5e7eb; }
+}

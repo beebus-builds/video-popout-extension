@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <button id="popout" class="primary">Pop out video</button>
+  <div id="status" class="status">Looking for videos…</div>
+  <div id="controls" class="controls" hidden>
+    <button id="ctl-play" class="chip" title="Play / pause selected">Play/Pause</button>
+    <button id="ctl-mute" class="chip" title="Mute / unmute">Mute</button>
+    <button id="ctl-back" class="chip" title="Back 10 seconds">-10s</button>
+    <button id="ctl-fwd" class="chip" title="Forward 10 seconds">+10s</button>
+    <button id="ctl-speed" class="chip" title="Cycle playback speed">1x</button>
+    <button id="ctl-loop" class="chip" title="Toggle loop">Loop</button>
+  </div>
+  <div id="pro" class="controls" hidden>
+    <select id="boost" title="Audio boost">
+      <option value="100">100% vol</option>
+      <option value="125">125%</option>
+      <option value="150">150%</option>
+      <option value="200">200%</option>
+    </select>
+    <select id="eq" title="EQ preset">
+      <option value="flat">Flat EQ</option>
+      <option value="bass">Bass boost</option>
+      <option value="vocal">Vocal</option>
+    </select>
+    <button id="ab-a" class="chip" title="Set A">A</button>
+    <button id="ab-b" class="chip" title="Set B and loop">B</button>
+    <button id="ab-clear" class="chip" title="Clear A-B">Clear AB</button>
+    <button id="shot" class="chip" title="Screenshot frame">Screenshot</button>
+  </div>
+  <div id="bulk" class="bulk" hidden>
+    <button id="pop-selected" class="secondary small">Pop selected</button>
+    <button id="pop-all" class="secondary small">Pop all</button>
+  </div>
+  <div id="list" class="list"></div>
+  <div class="sleep-row">
+    <input id="sleep" type="number" min="0" max="240" placeholder="Sleep min" title="Sleep timer minutes" />
+    <button id="sleep-start" class="secondary small">Sleep</button>
+    <button id="sleep-cancel" class="ghost small">Cancel</button>
+    <span id="sleep-status" class="sub"></span>
+  </div>
+  <button id="capture" class="secondary">Pop out entire tab</button>
+  <button id="theater" class="secondary">Open Theater</button>
+  <div class="site-row">
+    <span id="site-label">This site: default</span>
+    <select id="site-rule" title="Per-site rule">
+      <option value="default">Default</option>
+      <option value="always">Always pop</option>
+      <option value="never">Never auto</option>
+    </select>
+  </div>
+  <div class="footer">
+    <div class="hints">
+      <div><kbd>Alt</kbd>+<kbd>P</kbd> pops the video · Side Panel is your theater</div>
+      <div>Chrome allows one native popout; multi opens one combined window.</div>
+    </div>
+    <button id="options" class="link">Options</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

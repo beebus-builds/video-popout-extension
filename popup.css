@@ -1,0 +1,242 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  width: 280px;
+  margin: 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+button.primary {
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 0;
+  border-radius: 8px;
+  background: #e11d48;
+  color: #fff;
+  cursor: pointer;
+}
+
+button.primary:hover:not(:disabled) { background: #be123c; }
+button.primary:disabled { opacity: 0.6; cursor: default; }
+
+button.secondary {
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.secondary:hover:not(:disabled) { background: rgba(128, 128, 128, 0.15); }
+button.secondary:disabled { opacity: 0.6; cursor: default; }
+
+.status {
+  font-size: 12px;
+  min-height: 15px;
+  color: #9ca3af;
+}
+
+.status.error { color: #ef4444; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.chip {
+  flex: 1 1 30%;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button.chip:hover:not(:disabled) { background: rgba(128, 128, 128, 0.15); }
+button.chip:disabled { opacity: 0.5; cursor: default; }
+button.chip.active { border-color: #e11d48; color: #e11d48; }
+
+.video-item img.thumb {
+  width: 56px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #000;
+  flex-shrink: 0;
+}
+
+.bulk {
+  display: flex;
+  gap: 6px;
+}
+
+.site-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.site-row select, #pro select, #boost, #eq {
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+}
+
+.sleep-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sleep-row input {
+  width: 72px;
+  padding: 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(128,128,128,0.4);
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+}
+
+button.ghost {
+  border: 1px solid rgba(128,128,128,0.3);
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+button.ghost:hover { background: rgba(128,128,128,0.15); }
+
+button.small {
+  flex: 1;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.video-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+}
+
+.video-item:hover { background: rgba(128, 128, 128, 0.15); }
+
+.video-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: #e11d48;
+}
+
+.video-item .pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  min-width: 0;
+}
+
+.video-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b7280;
+  flex-shrink: 0;
+}
+
+.video-item.playing .dot { background: #22c55e; }
+.video-item.inpip .dot { background: #e11d48; }
+
+.video-item .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.video-item .title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.video-item .sub { color: #9ca3af; font-size: 11px; }
+
+.footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(128, 128, 128, 0.25);
+  padding-top: 8px;
+}
+
+.hints {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #9ca3af;
+}
+
+button.link {
+  background: none;
+  border: 0;
+  color: #e11d48;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+kbd {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  body { background: #111214; color: #e5e7eb; }
+}

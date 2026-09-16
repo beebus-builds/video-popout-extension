@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Theater</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header>
+    <h1>Theater</h1>
+    <button id="refresh" class="ghost">Refresh</button>
+  </header>
+  <div id="status" class="status">Loading…</div>
+  <div id="controls" class="controls">
+    <button data-cmd="toggle-play" class="chip">Play/Pause</button>
+    <button data-cmd="toggle-mute" class="chip">Mute</button>
+    <button data-cmd="seek" data-val="-10" class="chip">-10s</button>
+    <button data-cmd="seek" data-val="10" class="chip">+10s</button>
+    <select id="boost" title="Audio boost">
+      <option value="100">100% vol</option>
+      <option value="125">125%</option>
+      <option value="150">150%</option>
+      <option value="200">200%</option>
+    </select>
+    <select id="eq" title="EQ preset">
+      <option value="flat">Flat EQ</option>
+      <option value="bass">Bass</option>
+      <option value="vocal">Vocal</option>
+    </select>
+    <button id="ab-a" class="chip">A</button>
+    <button id="ab-b" class="chip">B</button>
+    <button id="ab-clear" class="chip">Clear AB</button>
+    <button id="shot" class="chip">Screenshot</button>
+  </div>
+  <div class="row">
+    <input id="sleep" type="number" min="0" max="240" placeholder="Sleep min" />
+    <button id="sleep-start" class="secondary small">Sleep timer</button>
+    <button id="sleep-cancel" class="ghost small">Cancel</button>
+    <span id="sleep-status" class="sub"></span>
+  </div>
+  <div id="list" class="list"></div>
+  <div class="footer">
+    <button id="pop-all" class="primary">Pop all in one window</button>
+    <button id="capture" class="secondary">Pop entire tab</button>
+    <button id="open-options" class="link">Options</button>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
