@@ -178,9 +178,6 @@ document.getElementById("boost").addEventListener("change", (e) => { void sendPr
 document.getElementById("eq").addEventListener("change", (e) => { void sendPro("eq", e.target.value); });
 
 const noiseBtn = document.getElementById("noise");
-const transcriptBtn = document.getElementById("transcript");
-const transcriptExportBtn = document.getElementById("transcript-export");
-const transcriptStatus = document.getElementById("transcript-status");
 
 let noiseOn = false;
 noiseBtn?.addEventListener("click", async () => {
@@ -193,43 +190,6 @@ noiseBtn?.addEventListener("click", async () => {
     setStatus(res?.ok ? `Noise gate ${noiseOn ? "ON" : "OFF"}.` : res?.error || "Noise toggle failed.", !res?.ok);
   } catch (e) {
     setStatus(e?.message || "Noise toggle failed.", true);
-  }
-});
-
-transcriptBtn?.addEventListener("click", async () => {
-  const ts = targets();
-  if (!ts.length) return;
-  transcriptStatus.textContent = "Starting transcript…";
-  try {
-    const res = await chrome.runtime.sendMessage({ type: "PRO_COMMAND", targets: ts.slice(0,1), command: "transcript-toggle", value: null });
-    if (res?.ok) {
-      transcriptStatus.textContent = res.active ? "Transcribing live…" : "Transcript stopped.";
-      setStatus(res.active ? "Live transcript started." : "Live transcript stopped.");
-      transcriptBtn.classList.toggle("active", !!res.active);
-    } else {
-      transcriptStatus.textContent = "Transcript needs HTTPS and a user gesture. Click Play first.";
-      setStatus(res?.error || "Transcript failed.", true);
-    }
-  } catch (e) {
-    transcriptStatus.textContent = "Transcript error";
-    setStatus(e?.message || "Transcript failed.", true);
-  }
-});
-
-transcriptExportBtn?.addEventListener("click", async () => {
-  const ts = targets();
-  if (!ts.length) return;
-  try {
-    const res = await chrome.runtime.sendMessage({ type: "PRO_COMMAND", targets: ts.slice(0,1), command: "transcript-export", value: null });
-    if (!res?.ok) throw new Error(res?.error || "Nothing to export");
-    const a = document.createElement("a");
-    a.href = res.dataUrl;
-    a.download = `transcript-${Date.now()}.txt`;
-    a.click();
-    setStatus("Transcript downloaded.");
-    transcriptStatus.textContent = "Exported.";
-  } catch (e) {
-    setStatus(e?.message || "Export failed.", true);
   }
 });
 

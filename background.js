@@ -171,13 +171,12 @@ async function ensureOverlay(tabId) {
 // which is why boost previously reported success but changed nothing.
 async function runProAudioMain(idxs, cmd, val) {
   try {
-    if (!["boost", "eq", "get-state", "noise", "transcript-toggle", "transcript-export"].includes(cmd)) return { ok: false, error: "Unknown audio command." };
+    if (!["boost", "eq", "get-state", "noise"].includes(cmd)) return { ok: false, error: "Unknown audio command." };
     const videos = Array.from(document.querySelectorAll("video"));
     const targets = (Array.isArray(idxs) && idxs.length ? idxs.map((i) => videos[i]).filter(Boolean) : videos);
     if (!targets.length) return { ok: false, error: "No video found." };
     if (!window.__popoutAudioMap) window.__popoutAudioMap = new WeakMap();
     if (!window.__popoutAudioState) window.__popoutAudioState = new WeakMap();
-    if (!window.__popoutTranscript) window.__popoutTranscript = new WeakMap();
 
 
     function makeFilter(ctx, type, freq, q) {
@@ -254,8 +253,7 @@ async function runProAudioMain(idxs, cmd, val) {
       const st = window.__popoutAudioState.get(video) || { boost: 100, eq: "flat", noise: false };
       const hooked = window.__popoutAudioMap.has(video);
       const ctxState = hooked ? window.__popoutAudioMap.get(video).ctx.state : "unhooked";
-      const transcript = window.__popoutTranscript?.get(video) || { active: false, text: "" };
-      return { boost: st.boost, eq: st.eq, noise: st.noise, hooked, ctxState, transcript };
+      return { boost: st.boost, eq: st.eq, noise: st.noise, hooked, ctxState };
     }
     if (cmd === "get-state") {
       const states = targets.map((v) => getState(v));
@@ -263,8 +261,6 @@ async function runProAudioMain(idxs, cmd, val) {
     }
     let count = 0;
     let lastError = "";
-    let transcriptActive = false;
-    let transcriptText = "";
     for (const v of targets) {
       const out = ensureAudio(v);
       if (out.error || !out.rec) { lastError = out.error || "Could not hook audio."; continue; }
@@ -307,58 +303,7 @@ async function runProAudioMain(idxs, cmd, val) {
         st.noise = on;
         window.__popoutAudioState.set(v, st);
         count++;
-      } else if (cmd === "transcript-toggle") {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { lastError = "SpeechRecognition not available. Needs HTTPS and mic permission. Chrome only supports it on secure sites."; continue; }
-        if (!window.isSecureContext) { lastError = "SpeechRecognition requires HTTPS. This page is not secure."; continue; }
-        const state = window.__popoutTranscript.get(v) || { active: false, text: "", rec: null };
-        if (!state.active) {
-          try {
-            const recog = new SR();
-            recog.lang = "en-US";
-            recog.interimResults = true;
-            recog.continuous = true;
-            recog.onresult = (e) => {
-              let t = "";
-              for (let i = e.resultIndex; i < e.results.length; i++) {
-                t += e.results[i][0].transcript;
-              }
-              state.text += t;
-            };
-            recog.onerror = (e) => {
-              lastError = "Speech recognition error: " + (e.error || "unknown");
-            };
-            recog.start();
-            state.rec = recog;
-            state.active = true;
-            window.__popoutTranscript.set(v, state);
-            transcriptActive = true;
-            transcriptText = state.text;
-            count++;
-          } catch (e) {
-            lastError = "Failed to start transcript: " + (e.message || e) + ". Try clicking the page once to grant user gesture.";
-          }
-        } else {
-          try { state.rec?.stop(); } catch {}
-          state.active = false;
-          window.__popoutTranscript.set(v, state);
-          transcriptActive = false;
-          transcriptText = state.text;
-          count++;
-        }
-      } else if (cmd === "transcript-export") {
-        const state = window.__popoutTranscript.get(v) || { active: false, text: "" };
-        transcriptText = state.text;
-        count++;
       }
-    }
-    if (cmd === "transcript-toggle") {
-      return { ok: true, count, active: transcriptActive };
-    }
-    if (cmd === "transcript-export") {
-      if (!transcriptText) return { ok: false, error: "No transcript available." };
-      const dataUrl = "data:text/plain;charset=utf-8," + encodeURIComponent(transcriptText.trim());
-      return { ok: true, count, dataUrl };
     }
     if (!count) return { ok: false, error: lastError || "Could not apply. Click Play first, then try again." };
     return { ok: true, count };
@@ -370,7 +315,7 @@ async function runProAudioMain(idxs, cmd, val) {
 async function proCommand(tabId, targets, command, value) {
   if (tabId == null) return { ok: false, error: "No tab found." };
   if (!targets || !targets.length) return { ok: false, error: "Select a video." };
-  if (!["boost", "eq", "get-state", "noise", "transcript-toggle", "transcript-export"].includes(command)) return { ok: false, error: "Unknown audio command." };
+  if (!["boost", "eq", "get-state", "noise"].includes(command)) return { ok: false, error: "Unknown audio command." };
   const byFrame = new Map();
   for (const t of targets) {
     const f = t.frameId ?? 0;
@@ -380,8 +325,6 @@ async function proCommand(tabId, targets, command, value) {
   let count = 0;
   let lastError = "";
   let gotState = null;
-  let transcriptActive = null;
-  let transcriptDataUrl = null;
   for (const [frameId, indices] of byFrame) {
     try {
       // MAIN world first: only MAIN-world Web Audio is audible.
@@ -420,12 +363,6 @@ async function proCommand(tabId, targets, command, value) {
           if (r.fallback) gotState.fallback = true;
           return { ok: true, count, state: gotState };
         }
-        if (command === "transcript-toggle") {
-          transcriptActive = r.active;
-        }
-        if (command === "transcript-export") {
-          transcriptDataUrl = r.dataUrl;
-        }
       } else {
         lastError = r?.error || "Failed.";
       }
@@ -434,8 +371,6 @@ async function proCommand(tabId, targets, command, value) {
     }
   }
   if (!count) return { ok: false, error: lastError || "Could not apply." };
-  if (command === "transcript-toggle") return { ok: true, count, active: !!transcriptActive };
-  if (command === "transcript-export") return { ok: true, count, dataUrl: transcriptDataUrl };
   return { ok: true, count };
 }
 
