@@ -91,6 +91,7 @@
       visible,
       ready,
       muted: !!video.muted,
+      volume: typeof video.volume === "number" ? video.volume : 1,
       loop: !!video.loop,
       rate: video.playbackRate || 1,
       currentTime: Math.round(video.currentTime || 0),

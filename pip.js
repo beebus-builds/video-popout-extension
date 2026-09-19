@@ -58,6 +58,10 @@
     return { ok: true, action: "entered" };
   } catch (error) {
     clearFlags();
-    return { ok: false, error: error && error.message ? error.message : "Could not pop out this video." };
+    const raw = error && error.message ? error.message : "Could not pop out this video.";
+    if (/user gesture|user activation|handling a user|transient activation|not allowed/i.test(raw)) {
+      return { ok: false, code: "NEEDS_GESTURE", error: "Chrome blocked PiP: it needs a recent click on the page. Click Play on the video once, then click Pop again within a few seconds. Most reliable: hover the video and click its on-page Pop out button, or right-click video > Pop out video." };
+    }
+    return { ok: false, error: raw };
   }
 })();

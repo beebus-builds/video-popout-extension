@@ -17,7 +17,34 @@
     }
   }
 
-  function popVideo(video) {
+  async function popVideo(video) {
+    // Try direct PiP first: this click IS a page user gesture,
+    // so it satisfies Chrome's requestPictureInPicture gesture requirement.
+    // The background round-trip via executeScript loses the gesture.
+    try {
+      if (document.pictureInPictureElement === video) {
+        await document.exitPictureInPicture();
+        return;
+      }
+      if (document.pictureInPictureElement) {
+        try { await document.exitPictureInPicture(); } catch { /* continue */ }
+      }
+      const prev = video.disablePictureInPicture;
+      try {
+        video.disablePictureInPicture = false;
+        await video.requestPictureInPicture();
+        return;
+      } catch (directErr) {
+        try { video.disablePictureInPicture = prev; } catch { /* ignore */ }
+        const msg = directErr && directErr.message ? directErr.message : "";
+        // Only fall back to background for non-gesture errors;
+        // gesture errors from direct attempt won't succeed via background either.
+        if (/user gesture|user activation|handling a user/i.test(msg)) {
+          showTip(video, "Chrome needs a page click first: click Play on the video, then Pop again.");
+          return;
+        }
+      }
+    } catch { /* fall through to background */ }
     const index = findVideoIndex(video);
     if (index < 0) return;
     chrome.runtime.sendMessage({ type: "OVERLAY_POP", index }, (res) => {

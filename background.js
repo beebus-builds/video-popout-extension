@@ -1,21 +1,8 @@
 const DEFAULTS = {
   searchIframes: true,
   showPicker: true,
-  autoRepopout: false,
-  captureAudio: true,
-  showContextMenu: true,
   hoverButtons: true,
-  autoPipOnSwitch: false,
-  autoPauseBackground: false,
-  resumeOnReturn: false,
-  docPipSize: "balanced",
-  siteRules: {}
-};
-
-const DOC_PIP_SIZES = {
-  compact: { width: 480, height: 270 },
-  balanced: { width: 640, height: 360 },
-  large: { width: 960, height: 540 }
+  showContextMenu: true
 };
 
 async function getSettings() {
@@ -24,16 +11,6 @@ async function getSettings() {
     return { ...DEFAULTS, ...stored };
   } catch {
     return { ...DEFAULTS };
-  }
-}
-
-function originOf(url) {
-  try {
-    const u = new URL(url);
-    if (u.protocol === "http:" || u.protocol === "https:") return u.origin;
-    return "";
-  } catch {
-    return "";
   }
 }
 
@@ -64,21 +41,15 @@ async function ensureMenus() {
   if (!s.showContextMenu) return;
   try {
     chrome.contextMenus.create({ id: "popout-video", title: "Pop out video", contexts: ["video"] });
-    chrome.contextMenus.create({ id: "popout-all", title: "Pop out all videos", contexts: ["page", "video"] });
-    chrome.contextMenus.create({ id: "popout-tab", title: "Pop out entire tab", contexts: ["page", "video"] });
   } catch { return; }
 }
 
-chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener(() => {
   void ensureMenus();
-  if (details.reason === "install") {
-    try { chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") }); } catch { return; }
-  }
-  try { chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {}); } catch { return; }
+  try { chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") }); } catch { return; }
 });
 chrome.runtime.onStartup.addListener(() => {
   void ensureMenus();
-  try { chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {}); } catch { return; }
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && Object.keys(DEFAULTS).some((k) => k in changes)) void ensureMenus();
@@ -93,34 +64,19 @@ async function setTargetIndex(tabId, frameId, index) {
   });
 }
 
-async function toggleInTab(tabId, frameId = 0, videoIndex = null, enterOnly = false) {
+async function toggleInTab(tabId, frameId = 0, videoIndex = null) {
   if (tabId == null) return { ok: false, error: "No tab found." };
   try {
     if (videoIndex != null) {
       try { await setTargetIndex(tabId, frameId, videoIndex); } catch { return; }
-    }
-    if (enterOnly) {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId, frameIds: [frameId] },
-          func: () => { window.__popoutEnterOnly = true; }
-        });
-      } catch { return; }
     }
     const results = await chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
       files: ["pip.js"]
     });
     const result = results[0]?.result;
-    if (!result?.ok) throw new Error(result?.error || "Could not pop out this video.");
+    if (!result?.ok) return { ok: false, code: result?.code, error: result?.error || "Could not pop out this video." };
     await clearBadge(tabId);
-    const s = await getSettings();
-    if (s.autoRepopout && result.action === "entered") {
-      await rememberPipTab(tabId);
-    }
-    if (result.action === "exited") {
-      await forgetPipTab(tabId);
-    }
     return { ok: true, action: result.action };
   } catch (error) {
     const message = error?.message || "Cannot access this page.";
@@ -137,11 +93,9 @@ async function collectVideos(tabId) {
       files: ["collect-videos.js"]
     });
     const videos = [];
-    let docPipOpen = false;
     for (const r of results || []) {
       const payload = r?.result;
       const list = Array.isArray(payload) ? payload : (payload?.videos || []);
-      if (payload && !Array.isArray(payload) && payload.docPipOpen) docPipOpen = true;
       for (const v of list) {
         videos.push({ frameId: r.frameId ?? 0, ...v });
       }
@@ -151,51 +105,9 @@ async function collectVideos(tabId) {
       if (a.inPip !== b.inPip) return a.inPip ? -1 : 1;
       return (b.width * b.height) - (a.width * a.height);
     });
-    return { ok: true, videos, docPipOpen };
+    return { ok: true, videos };
   } catch (error) {
-    return { ok: false, error: error?.message || "Cannot access this page.", videos: [], docPipOpen: false };
-  }
-}
-
-async function popMultiple(tabId, targets) {
-  if (tabId == null) return { ok: false, error: "No tab found." };
-  if (!targets || !targets.length) return { ok: false, error: "Select at least one video." };
-  const frameIds = [...new Set(targets.map((t) => t.frameId ?? 0))];
-  if (frameIds.length > 1) {
-    return { ok: false, error: "Multi-popout works for videos in the same frame — Chrome allows only one floating window per section. Pop them one at a time, or use whole-tab popout." };
-  }
-  const frameId = frameIds[0];
-  const indices = [...new Set(targets.map((t) => t.index).filter((i) => Number.isInteger(i)))];
-  if (!indices.length) return { ok: false, error: "Select at least one video." };
-  try {
-    const s = await getSettings();
-    const size = DOC_PIP_SIZES[s.docPipSize] || DOC_PIP_SIZES.balanced;
-    await chrome.scripting.executeScript({
-      target: { tabId, frameIds: [frameId] },
-      func: (idxs, winSize) => {
-        window.__popoutVideoIndices = idxs;
-        window.__popoutWindowSize = winSize;
-      },
-      args: [indices, size]
-    });
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, frameIds: [frameId] },
-      files: ["multi-pip.js"]
-    });
-    const result = results[0]?.result;
-    if (!result?.ok) throw new Error(result?.error || "Could not pop out these videos.");
-    await clearBadge(tabId);
-    if (s.autoRepopout && result.action === "entered") {
-      await rememberPipTab(tabId);
-    }
-    if (result.action === "closed") {
-      await forgetPipTab(tabId);
-    }
-    return { ok: true, count: result.count || indices.length, action: result.action };
-  } catch (error) {
-    const message = error?.message || "Cannot access this page.";
-    await setBadgeError(tabId, message);
-    return { ok: false, error: message };
+    return { ok: false, error: error?.message || "Cannot access this page.", videos: [] };
   }
 }
 
@@ -221,16 +133,11 @@ async function controlVideos(tabId, targets, command, value) {
             const v = vids[i];
             if (!v) continue;
             try {
-              if (cmd === "play") { void v.play(); n++; }
-              else if (cmd === "pause") { v.pause(); n++; }
-              else if (cmd === "toggle-play") { if (v.paused) { void v.play(); } else { v.pause(); } n++; }
-              else if (cmd === "mute") { v.muted = true; n++; }
-              else if (cmd === "unmute") { v.muted = false; n++; }
+              if (cmd === "toggle-play") { if (v.paused) { void v.play(); } else { v.pause(); } n++; }
               else if (cmd === "toggle-mute") { v.muted = !v.muted; n++; }
+              else if (cmd === "volume") { v.muted = false; v.volume = Math.max(0, Math.min(1, Number(val))); n++; }
               else if (cmd === "seek") { v.currentTime = Math.max(0, (v.currentTime || 0) + Number(val || 0)); n++; }
               else if (cmd === "rate") { v.playbackRate = Number(val) || 1; n++; }
-              else if (cmd === "loop") { v.loop = !!val; n++; }
-              else if (cmd === "toggle-loop") { v.loop = !v.loop; n++; }
             } catch (e) { return; }
           }
           return { ok: true, count: n };
@@ -259,187 +166,208 @@ async function ensureOverlay(tabId) {
   } catch { return; }
 }
 
-async function rememberPipTab(tabId) {
+// Runs in the page MAIN world: Web Audio createMediaElementSource only
+// affects audible output from MAIN. ISOLATED world hooks stay silent,
+// which is why boost previously reported success but changed nothing.
+async function runProAudioMain(idxs, cmd, val) {
   try {
-    const data = await chrome.storage.session.get({ pipTabs: [] });
-    const tabs = new Set(data.pipTabs || []);
-    tabs.add(tabId);
-    await chrome.storage.session.set({ pipTabs: [...tabs] });
-  } catch { return; }
-}
+    if (!["boost", "eq", "get-state", "noise", "transcript-toggle", "transcript-export"].includes(cmd)) return { ok: false, error: "Unknown audio command." };
+    const videos = Array.from(document.querySelectorAll("video"));
+    const targets = (Array.isArray(idxs) && idxs.length ? idxs.map((i) => videos[i]).filter(Boolean) : videos);
+    if (!targets.length) return { ok: false, error: "No video found." };
+    if (!window.__popoutAudioMap) window.__popoutAudioMap = new WeakMap();
+    if (!window.__popoutAudioState) window.__popoutAudioState = new WeakMap();
+    if (!window.__popoutTranscript) window.__popoutTranscript = new WeakMap();
 
-async function forgetPipTab(tabId) {
-  try {
-    const data = await chrome.storage.session.get({ pipTabs: [] });
-    const tabs = (data.pipTabs || []).filter((id) => id !== tabId);
-    await chrome.storage.session.set({ pipTabs: tabs });
-  } catch { return; }
-}
 
-let repopoutTimers = {};
-
-async function maybeRepopout(tabId, url) {
-  if (tabId == null || isRestrictedUrl(url)) return;
-  const s = await getSettings();
-  const rule = originOf(url || "") ? (s.siteRules || {})[originOf(url)] : undefined;
-  if (rule === "never") return;
-  const alwaysSite = rule === "always";
-  if (!s.autoRepopout && !alwaysSite) {
-    void ensureOverlay(tabId);
-    return;
-  }
-  if (!alwaysSite) {
-    let session = {};
-    try { session = await chrome.storage.session.get({ pipTabs: [] }); } catch { return; }
-    if (!(session.pipTabs || []).includes(tabId)) {
-      void ensureOverlay(tabId);
-      return;
+    function makeFilter(ctx, type, freq, q) {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      if (q) f.Q.value = q;
+      f.gain.value = 0;
+      return f;
     }
-  }
-  const hasHosts = await chrome.permissions.contains({ origins: ["<all_urls>"] }).catch(() => false);
-  if (!hasHosts) {
-    await setBadgeError(tabId, "Auto re-popout needs site access — open Options to grant it, or press Alt+P.");
-    return;
-  }
-  if (repopoutTimers[tabId]) clearTimeout(repopoutTimers[tabId]);
-  repopoutTimers[tabId] = setTimeout(async () => {
-    delete repopoutTimers[tabId];
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId, frameIds: [0] },
-        func: () => { window.__popoutEnterOnly = true; }
-      });
-      const results = await chrome.scripting.executeScript({
-        target: { tabId, allFrames: s.searchIframes },
-        files: ["pip.js"]
-      });
-      const entered = (results || []).some((r) => r?.result?.ok);
-      if (entered) {
-        await clearBadge(tabId);
+    function ensureAudio(video) {
+      if (window.__popoutAudioMap.has(video)) return { rec: window.__popoutAudioMap.get(video) };
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return { error: "Web Audio not supported on this page." };
+        const ctx = new AC();
+        const src = ctx.createMediaElementSource(video);
+        const low = makeFilter(ctx, "lowshelf", 110);
+        const mid1 = makeFilter(ctx, "peaking", 400, 0.9);
+        const mid2 = makeFilter(ctx, "peaking", 1200, 0.9);
+        const mid3 = makeFilter(ctx, "peaking", 4000, 0.9);
+        const high = makeFilter(ctx, "highshelf", 9500);
+        const preGain = ctx.createGain();
+        preGain.gain.value = 1;
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -12;
+        comp.knee.value = 0;
+        comp.ratio.value = 20;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.15;
+        src.connect(low);
+        low.connect(mid1); mid1.connect(mid2); mid2.connect(mid3); mid3.connect(high);
+        high.connect(preGain); preGain.connect(comp); comp.connect(ctx.destination);
+        const rec = { ctx, preGain, low, mid1, mid2, mid3, high, comp, src };
+        window.__popoutAudioMap.set(video, rec);
+        if (!window.__popoutAudioState.has(video)) window.__popoutAudioState.set(video, { boost: 100, eq: "flat", noise: false });
+        return { rec };
+      } catch (e) {
+        const msg = (e && e.message) || "";
+        if (/already|InvalidState|mediaElementSource/i.test(msg)) {
+          return { error: "This video is already hooked. Reload the page, then set boost once." };
+        }
+        return { error: msg || "Could not hook audio." };
+      }
+    }
+    const PRESETS = {
+      flat: [0, 0, 0, 0, 0],
+      bass: [10, 4, 0, -1, 1],
+      vocal: [-3, -1, 4, 5, 4],
+      treble: [-5, -2, 0, 4, 8],
+      loud: [7, 3, 1, 3, 6],
+      night: [-1, 0, -1, -2, -3]
+    };
+    function applyEQ(rec, name) {
+      const p = PRESETS[name] || PRESETS.flat;
+      const t = rec.ctx.currentTime;
+      rec.low.gain.setTargetAtTime(p[0], t, 0.02);
+      rec.mid1.gain.setTargetAtTime(p[1], t, 0.02);
+      rec.mid2.gain.setTargetAtTime(p[2], t, 0.02);
+      rec.mid3.gain.setTargetAtTime(p[3], t, 0.02);
+      rec.high.gain.setTargetAtTime(p[4], t, 0.02);
+      if (name === "night") {
+        rec.comp.threshold.setTargetAtTime(-26, t, 0.05);
+        rec.comp.ratio.setTargetAtTime(12, t, 0.05);
+      } else if (name === "loud") {
+        rec.comp.threshold.setTargetAtTime(-16, t, 0.05);
+        rec.comp.ratio.setTargetAtTime(20, t, 0.05);
       } else {
-        await setBadgeError(tabId, "Video changed — press Alt+P to pop it out again.");
+        rec.comp.threshold.setTargetAtTime(-12, t, 0.05);
+        rec.comp.ratio.setTargetAtTime(20, t, 0.05);
       }
-    } catch {
-      await setBadgeError(tabId, "Video changed — press Alt+P to pop it out again.");
     }
-  }, 1800);
-}
-
-let lastActiveTabId = null;
-
-async function autoPipOnLeave(tabId) {
-  if (tabId == null) return;
-  try {
-    const tab = await chrome.tabs.get(tabId).catch(() => null);
-    if (!tab || !tab.url || isRestrictedUrl(tab.url)) return;
-    const s = await getSettings();
-    if (!s.autoPipOnSwitch) return;
-    const rule = originOf(tab.url) ? (s.siteRules || {})[originOf(tab.url)] : undefined;
-    if (rule === "never") return;
-    const hasHosts = await chrome.permissions.contains({ origins: ["<all_urls>"] }).catch(() => false);
-    if (!hasHosts) return;
-    await toggleInTab(tabId, 0, null, true);
-  } catch { return; }
-}
-
-async function handlePauseResume(previousTabId, currentTabId) {
-  try {
-    const s = await getSettings();
-    if (s.autoPauseBackground && previousTabId != null) {
-      const prevTab = await chrome.tabs.get(previousTabId).catch(() => null);
-      if (prevTab && !isRestrictedUrl(prevTab.url)) {
-        const rule = originOf(prevTab.url) ? (s.siteRules || {})[originOf(prevTab.url)] : undefined;
-        if (rule !== "never") {
+    function getState(video) {
+      const st = window.__popoutAudioState.get(video) || { boost: 100, eq: "flat", noise: false };
+      const hooked = window.__popoutAudioMap.has(video);
+      const ctxState = hooked ? window.__popoutAudioMap.get(video).ctx.state : "unhooked";
+      const transcript = window.__popoutTranscript?.get(video) || { active: false, text: "" };
+      return { boost: st.boost, eq: st.eq, noise: st.noise, hooked, ctxState, transcript };
+    }
+    if (cmd === "get-state") {
+      const states = targets.map((v) => getState(v));
+      return { ok: true, count: targets.length, state: states[0], states };
+    }
+    let count = 0;
+    let lastError = "";
+    let transcriptActive = false;
+    let transcriptText = "";
+    for (const v of targets) {
+      const out = ensureAudio(v);
+      if (out.error || !out.rec) { lastError = out.error || "Could not hook audio."; continue; }
+      const rec = out.rec;
+      try {
+        if (rec.ctx.state === "suspended") {
+          try { await rec.ctx.resume(); } catch (e) { /* ignore */ }
+        }
+      } catch (e) { /* ignore */ }
+      if (rec.ctx.state === "suspended") {
+        lastError = "Browser blocked audio: click Play on the video once, keep it playing, then set boost again.";
+        continue;
+      }
+      const st = window.__popoutAudioState.get(v) || { boost: 100, eq: "flat", noise: false };
+      if (cmd === "boost") {
+        const pct = Math.max(100, Math.min(400, Number(val) || 100));
+        rec.preGain.gain.setTargetAtTime(pct / 100, rec.ctx.currentTime, 0.02);
+        st.boost = pct;
+        window.__popoutAudioState.set(v, st);
+        count++;
+      } else if (cmd === "eq") {
+        const name = String(val || "flat");
+        applyEQ(rec, name);
+        st.eq = name;
+        window.__popoutAudioState.set(v, st);
+        count++;
+      } else if (cmd === "noise") {
+        const on = Boolean(val);
+        const t = rec.ctx.currentTime;
+        if (on) {
+          rec.comp.threshold.setTargetAtTime(-28, t, 0.05);
+          rec.comp.ratio.setTargetAtTime(8, t, 0.05);
+          rec.comp.knee.setTargetAtTime(0, t, 0.05);
+          rec.comp.attack.setTargetAtTime(0.001, t, 0.05);
+          rec.comp.release.setTargetAtTime(0.08, t, 0.05);
+        } else {
+          const eqName = st.eq || "flat";
+          applyEQ(rec, eqName);
+        }
+        st.noise = on;
+        window.__popoutAudioState.set(v, st);
+        count++;
+      } else if (cmd === "transcript-toggle") {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { lastError = "SpeechRecognition not supported."; continue; }
+        const state = window.__popoutTranscript.get(v) || { active: false, text: "", rec: null };
+        if (!state.active) {
           try {
-            await chrome.scripting.executeScript({
-              target: { tabId: previousTabId, allFrames: true },
-              func: () => {
-                for (const v of document.querySelectorAll("video")) {
-                  try {
-                    if (!v.paused && !v.ended) { v.dataset.popoutWasPlaying = "1"; v.pause(); }
-                    else { delete v.dataset.popoutWasPlaying; }
-                  } catch { return; }
-                }
+            const recog = new SR();
+            recog.lang = "en-US";
+            recog.interimResults = true;
+            recog.continuous = true;
+            recog.onresult = (e) => {
+              let t = "";
+              for (let i = e.resultIndex; i < e.results.length; i++) {
+                t += e.results[i][0].transcript;
               }
-            });
-          } catch { return; }
+              state.text += t;
+            };
+            recog.onerror = () => {};
+            recog.start();
+            state.rec = recog;
+            state.active = true;
+            window.__popoutTranscript.set(v, state);
+            transcriptActive = true;
+            transcriptText = state.text;
+            count++;
+          } catch (e) {
+            lastError = "Failed to start transcript: " + (e.message || e);
+          }
+        } else {
+          try { state.rec?.stop(); } catch {}
+          state.active = false;
+          window.__popoutTranscript.set(v, state);
+          transcriptActive = false;
+          transcriptText = state.text;
+          count++;
         }
+      } else if (cmd === "transcript-export") {
+        const state = window.__popoutTranscript.get(v) || { active: false, text: "" };
+        transcriptText = state.text;
+        count++;
       }
     }
-    if (s.resumeOnReturn && currentTabId != null) {
-      const curTab = await chrome.tabs.get(currentTabId).catch(() => null);
-      if (curTab && !isRestrictedUrl(curTab.url)) {
-        const rule = originOf(curTab.url) ? (s.siteRules || {})[originOf(curTab.url)] : undefined;
-        if (rule !== "never") {
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: currentTabId, allFrames: true },
-              func: () => {
-                for (const v of document.querySelectorAll("video")) {
-                  if (v.paused && v.dataset && v.dataset.popoutWasPlaying === "1") {
-                    try { void v.play(); } catch { return; }
-                  }
-                }
-              }
-            });
-          } catch { return; }
-        }
-      }
+    if (cmd === "transcript-toggle") {
+      return { ok: true, count, active: transcriptActive };
     }
-  } catch { return; }
-}
-
-async function handleSleepAlarm(alarm) {
-  if (alarm.name !== "popout-sleep") return;
-  try {
-    const data = await chrome.storage.session.get({ sleep: null });
-    const sleep = data.sleep;
-    if (!sleep || !sleep.tabId) return;
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: sleep.tabId, allFrames: true },
-        func: () => {
-          for (const v of document.querySelectorAll("video")) { try { v.pause(); } catch { return; } }
-          if (document.pictureInPictureElement) { try { document.exitPictureInPicture(); } catch { return; } }
-          if (window.documentPictureInPicture && window.documentPictureInPicture.window) { try { window.documentPictureInPicture.window.close(); } catch { return; } }
-        }
-      });
-    } catch { return; }
-    await chrome.storage.session.remove("sleep");
-    await chrome.alarms.clear("popout-sleep");
-  } catch { return; }
-}
-chrome.alarms.onAlarm.addListener((alarm) => { void handleSleepAlarm(alarm); });
-
-async function setSleep(minutes, tabId) {
-  try { await chrome.alarms.clear("popout-sleep"); } catch { return { ok: false, error: "Could not set timer." }; }
-  if (!minutes || minutes <= 0) {
-    try { await chrome.storage.session.remove("sleep"); } catch { return; }
-    return { ok: true, active: false };
-  }
-  const mins = Math.max(1, Math.min(240, Number(minutes) || 0));
-  const endsAt = Date.now() + mins * 60 * 1000;
-  try {
-    await chrome.storage.session.set({ sleep: { minutes: mins, endsAt, tabId } });
-    await chrome.alarms.create("popout-sleep", { when: endsAt });
-  } catch { return { ok: false, error: "Could not set timer." }; }
-  return { ok: true, active: true, minutes: mins, endsAt };
-}
-
-async function getSleep() {
-  try {
-    const data = await chrome.storage.session.get({ sleep: null });
-    const sleep = data.sleep;
-    if (!sleep) return { ok: true, active: false };
-    return { ok: true, active: true, minutes: sleep.minutes, endsAt: sleep.endsAt, tabId: sleep.tabId };
-  } catch {
-    return { ok: true, active: false };
+    if (cmd === "transcript-export") {
+      if (!transcriptText) return { ok: false, error: "No transcript available." };
+      const dataUrl = "data:text/plain;charset=utf-8," + encodeURIComponent(transcriptText.trim());
+      return { ok: true, count, dataUrl };
+    }
+    if (!count) return { ok: false, error: lastError || "Could not apply. Click Play first, then try again." };
+    return { ok: true, count };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || "Audio failed." };
   }
 }
 
 async function proCommand(tabId, targets, command, value) {
   if (tabId == null) return { ok: false, error: "No tab found." };
   if (!targets || !targets.length) return { ok: false, error: "Select a video." };
+  if (!["boost", "eq", "get-state", "noise", "transcript-toggle", "transcript-export"].includes(command)) return { ok: false, error: "Unknown audio command." };
   const byFrame = new Map();
   for (const t of targets) {
     const f = t.frameId ?? 0;
@@ -447,23 +375,54 @@ async function proCommand(tabId, targets, command, value) {
     if (Number.isInteger(t.index)) byFrame.get(f).push(t.index);
   }
   let count = 0;
-  let dataUrl = null;
   let lastError = "";
+  let gotState = null;
+  let transcriptActive = null;
+  let transcriptDataUrl = null;
   for (const [frameId, indices] of byFrame) {
     try {
-      await chrome.scripting.executeScript({
-        target: { tabId, frameIds: [frameId] },
-        func: (idxs, cmd, val) => { window.__popoutProIndices = idxs; window.__popoutProCmd = cmd; window.__popoutProValue = val; },
-        args: [indices, command, value ?? null]
-      });
-      const res = await chrome.scripting.executeScript({
-        target: { tabId, frameIds: [frameId] },
-        files: ["pro-controls.js"]
-      });
-      const r = res[0]?.result;
+      // MAIN world first: only MAIN-world Web Audio is audible.
+      let r = null;
+      try {
+        const res = await chrome.scripting.executeScript({
+          target: { tabId, frameIds: [frameId] },
+          world: "MAIN",
+          func: runProAudioMain,
+          args: [indices, command, value ?? null]
+        });
+        r = res[0]?.result;
+      } catch (mainErr) {
+        // Fallback to legacy file-based ISOLATED injection
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId, frameIds: [frameId] },
+            func: (idxs, cmd, val) => { window.__popoutProIndices = idxs; window.__popoutProCmd = cmd; window.__popoutProValue = val; },
+            args: [indices, command, value ?? null]
+          });
+          const res2 = await chrome.scripting.executeScript({
+            target: { tabId, frameIds: [frameId] },
+            files: ["pro-controls.js"]
+          });
+          r = res2[0]?.result;
+          if (r?.ok) r.fallback = true;
+        } catch (e2) {
+          lastError = mainErr?.message || e2?.message || "Failed.";
+          continue;
+        }
+      }
       if (r?.ok) {
         count += r.count || 0;
-        if (r.dataUrl) dataUrl = r.dataUrl;
+        if (command === "get-state" && r.state) {
+          gotState = r.state;
+          if (r.fallback) gotState.fallback = true;
+          return { ok: true, count, state: gotState };
+        }
+        if (command === "transcript-toggle") {
+          transcriptActive = r.active;
+        }
+        if (command === "transcript-export") {
+          transcriptDataUrl = r.dataUrl;
+        }
       } else {
         lastError = r?.error || "Failed.";
       }
@@ -472,196 +431,14 @@ async function proCommand(tabId, targets, command, value) {
     }
   }
   if (!count) return { ok: false, error: lastError || "Could not apply." };
-  if (dataUrl) return { ok: true, count, dataUrl };
+  if (command === "transcript-toggle") return { ok: true, count, active: !!transcriptActive };
+  if (command === "transcript-export") return { ok: true, count, dataUrl: transcriptDataUrl };
   return { ok: true, count };
-}
-
-function ytIdFromUrl(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtu.be")) {
-      const id = u.pathname.slice(1).split("/")[0].split("?")[0];
-      if (id && id.length >= 6) return id;
-    }
-    if (u.hostname.includes("youtube.com")) {
-      const v = u.searchParams.get("v");
-      if (v) return v;
-      const m = u.pathname.match(/\/embed\/([^/?]+)/);
-      if (m) return m[1];
-      const m2 = u.pathname.match(/\/shorts\/([^/?]+)/);
-      if (m2) return m2[1];
-    }
-  } catch { return ""; }
-  return "";
-}
-
-async function collectAllTabs() {
-  const allTabs = await chrome.tabs.query({});
-  const tabs = allTabs.filter((t) => t.url && !isRestrictedUrl(t.url));
-  const results = [];
-  for (const tab of tabs) {
-    const found = await collectVideos(tab.id);
-    const ytid = ytIdFromUrl(tab.url || "");
-    results.push({
-      id: tab.id,
-      title: tab.title || tab.url || `Tab ${tab.id}`,
-      url: tab.url || "",
-      ytid: ytid || "",
-      videos: found.ok ? found.videos : [],
-      ok: found.ok,
-      docPipOpen: !!found.docPipOpen
-    });
-  }
-  results.sort((a, b) => (b.videos.length - a.videos.length) || (b.videos.some((v) => v.playing) ? 1 : 0) - (a.videos.some((v) => v.playing) ? 1 : 0));
-  return results;
-}
-
-async function popAllTabsViaCapture(tabIds) {
-  let okCount = 0;
-  let errors = [];
-  for (const tabId of tabIds) {
-    try {
-      await openCapture(tabId);
-      okCount++;
-      await new Promise((r) => setTimeout(r, 280));
-    } catch (e) {
-      errors.push(e?.message || "Failed");
-    }
-  }
-  if (!okCount) return { ok: false, error: errors[0] || "Could not open floating windows. Try granting site access in Options." };
-  return { ok: true, count: okCount };
-}
-
-async function popAllTabsViaPip(tabIds) {
-  let okCount = 0;
-  let lastError = "";
-  let pipLimitedHit = false;
-  for (const tabId of tabIds) {
-    try {
-      const res = await toggleInTab(tabId, 0);
-      if (res?.ok) {
-        okCount++;
-        await new Promise((r) => setTimeout(r, 320));
-      } else {
-        lastError = res?.error || "Failed";
-        if (lastError.toLowerCase().includes("picture-in-picture") && lastError.toLowerCase().includes("already")) pipLimitedHit = true;
-      }
-    } catch (e) {
-      lastError = e?.message || "Failed";
-    }
-  }
-  if (!okCount) return { ok: false, error: lastError || "No video could be popped. Try Capture windows or Video Wall." };
-  if (pipLimitedHit && okCount === 1 && tabIds.length > 1) {
-    return { ok: true, count: okCount, warning: "Chrome allows one native PiP at a time — only one stayed open. Use Floating windows (Capture) or Video Wall for 10+ at once." };
-  }
-  return { ok: true, count: okCount };
-}
-
-async function openWall(ids) {
-  let list = (ids || []).map((s) => String(s).trim()).filter(Boolean);
-  if (!list.length) {
-    const tabs = await chrome.tabs.query({});
-    const ytIds = tabs.map((t) => ytIdFromUrl(t.url || "")).filter(Boolean);
-    list = [...new Set(ytIds)];
-  }
-  if (!list.length) return { ok: false, error: "No YouTube videos found. Open YouTube tabs like the links you sent, then try again." };
-  if (list.length > 24) list = list.slice(0, 24);
-  try {
-    await chrome.storage.session.set({ wallIds: list });
-  } catch { return { ok: false, error: "Could not prepare the wall." }; }
-  try {
-    await chrome.windows.create({ url: chrome.runtime.getURL("wall.html"), type: "popup", width: 1280, height: 760, focused: true });
-  } catch (e) {
-    return { ok: false, error: e?.message || "Could not open the wall window." };
-  }
-  return { ok: true, count: list.length };
-}
-
-chrome.tabs.onActivated.addListener((info) => {
-  const previous = lastActiveTabId;
-  lastActiveTabId = info.tabId;
-  if (previous != null && previous !== info.tabId) {
-    void autoPipOnLeave(previous);
-    void handlePauseResume(previous, info.tabId);
-  }
-});
-chrome.tabs.onRemoved.addListener((tabId) => {
-  void forgetPipTab(tabId);
-  if (lastActiveTabId === tabId) lastActiveTabId = null;
-});
-
-chrome.webNavigation.onCompleted.addListener((details) => {
-  if (details.frameId === 0) void maybeRepopout(details.tabId, details.url);
-});
-chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
-  if (details.frameId === 0) void maybeRepopout(details.tabId, details.url);
-});
-
-async function openCapture(sourceTabId) {
-  if (sourceTabId == null) throw new Error("No active tab found.");
-  const s = await getSettings();
-  const win = await chrome.windows.create({ url: "about:blank", type: "popup", width: 960, height: 640, focused: false });
-  const consumerTabId = win.tabs?.[0]?.id;
-  if (consumerTabId == null) throw new Error("Could not open the popout window.");
-  try {
-    await chrome.storage.session.set({
-      [`capture:${consumerTabId}`]: { sourceTabId, audio: s.captureAudio }
-    });
-    await chrome.tabs.update(consumerTabId, { url: chrome.runtime.getURL("capture.html") });
-    await chrome.windows.update(win.id, { focused: true });
-  } catch (error) {
-    try { await chrome.storage.session.remove(`capture:${consumerTabId}`); } catch { return; }
-    throw error;
-  }
-  return { ok: true };
-}
-
-async function handleCaptureReady(sender) {
-  const consumerTabId = sender?.tab?.id;
-  const senderUrl = sender?.url || sender?.tab?.url || "";
-  if (consumerTabId == null) throw new Error("Unknown capture window.");
-  if (!senderUrl.startsWith(chrome.runtime.getURL("capture.html"))) {
-    throw new Error("Unexpected capture sender.");
-  }
-  const key = `capture:${consumerTabId}`;
-  let saved = null;
-  try {
-    const data = await chrome.storage.session.get(key);
-    saved = data[key];
-  } catch { saved = null; }
-  try { await chrome.storage.session.remove(key); } catch { return; }
-  if (!saved?.sourceTabId) throw new Error("Capture session expired. Please try again.");
-  const streamId = await chrome.tabCapture.getMediaStreamId({
-    targetTabId: saved.sourceTabId,
-    consumerTabId
-  });
-  return { ok: true, streamId, audio: !!saved.audio, sourceTabId: saved.sourceTabId };
 }
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "popout-video") {
     void toggleInTab(tab?.id, info.frameId ?? 0);
-  } else if (info.menuItemId === "popout-all") {
-    void (async () => {
-      if (tab?.id == null) return;
-      const found = await collectVideos(tab.id);
-      if (!found.ok) {
-        await setBadgeError(tab.id, found.error);
-        return;
-      }
-      const frameId = info.frameId ?? 0;
-      const targets = found.videos.filter((v) => (v.frameId ?? 0) === frameId && v.ready);
-      const fallback = targets.length ? targets : found.videos.filter((v) => (v.frameId ?? 0) === frameId);
-      if (!fallback.length) {
-        await setBadgeError(tab.id, "No ready videos in this frame.");
-        return;
-      }
-      await popMultiple(tab.id, fallback);
-    })();
-  } else if (info.menuItemId === "popout-tab") {
-    if (tab?.id != null) {
-      void openCapture(tab.id).catch((e) => setBadgeError(tab.id, e?.message));
-    }
   }
 });
 
@@ -670,8 +447,6 @@ chrome.commands.onCommand.addListener(async (command) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (command === "toggle-pip") {
       await toggleInTab(tab?.id, 0);
-    } else if (command === "popout-tab") {
-      await openCapture(tab?.id);
     }
   } catch { return; }
 });
@@ -687,14 +462,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       const found = await collectVideos(tab.id);
       void ensureOverlay(tab.id);
-      if (!found.ok) {
-        sendResponse({ ...found, origin: originOf(tab.url || ""), siteRule: "default" });
-        return;
-      }
-      const s = await getSettings();
-      const origin = originOf(tab.url || "");
-      const siteRule = (origin && s.siteRules && s.siteRules[origin]) || "default";
-      sendResponse({ ...found, origin, siteRule });
+      sendResponse(found);
       return;
     }
     if (msg.type === "POP_VIDEO") {
@@ -702,36 +470,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(await toggleInTab(tab?.id, msg.frameId ?? 0, msg.index ?? null));
       return;
     }
-    if (msg.type === "POP_VIDEOS") {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      sendResponse(await popMultiple(tab?.id, msg.targets || []));
-      return;
-    }
     if (msg.type === "VIDEO_COMMAND") {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       sendResponse(await controlVideos(tab?.id, msg.targets || [], msg.command, msg.value));
-      return;
-    }
-    if (msg.type === "SET_SITE_RULE") {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const origin = msg.origin || originOf(tab?.url || "");
-        if (!origin) throw new Error("Cannot determine this site.");
-        const s = await getSettings();
-        const rules = { ...(s.siteRules || {}) };
-        if (!msg.rule || msg.rule === "default") delete rules[origin];
-        else rules[origin] = msg.rule;
-        await chrome.storage.sync.set({ siteRules: rules });
-        sendResponse({ ok: true, origin, siteRule: rules[origin] || "default" });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Could not save the site rule." });
-      }
-      return;
-    }
-    if (msg.type === "OVERLAY_POP") {
-      const tabId = sender?.tab?.id;
-      const frameId = sender?.frameId ?? 0;
-      sendResponse(await toggleInTab(tabId, frameId, msg.index ?? null));
       return;
     }
     if (msg.type === "PRO_COMMAND") {
@@ -739,87 +480,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(await proCommand(tab?.id, msg.targets || [], msg.command, msg.value));
       return;
     }
-    if (msg.type === "SET_SLEEP") {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      sendResponse(await setSleep(msg.minutes, tab?.id));
-      return;
-    }
-    if (msg.type === "GET_SLEEP") {
-      sendResponse(await getSleep());
-      return;
-    }
-    if (msg.type === "OPEN_SIDE_PANEL") {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab?.windowId != null) await chrome.sidePanel.open({ windowId: tab.windowId });
-        sendResponse({ ok: true });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Could not open Theater." });
-      }
-      return;
-    }
-    if (msg.type === "CAPTURE_TAB") {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      try {
-        await openCapture(tab?.id);
-        sendResponse({ ok: true });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Could not pop out this tab." });
-      }
-      return;
-    }
-    if (msg.type === "CAPTURE_READY") {
-      try {
-        sendResponse(await handleCaptureReady(sender));
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Capture failed." });
-      }
-      return;
-    }
-    if (msg.type === "LIST_ALL_TABS") {
-      try {
-        const hasTabs = await chrome.permissions.contains({ origins: ["<all_urls>"] }).catch(() => false);
-        if (!hasTabs) {
-          sendResponse({ ok: false, error: "Grant site access in Options to scan all tabs, or open YouTube tabs and use Video Wall.", tabs: [] });
-          return;
-        }
-        sendResponse({ ok: true, tabs: await collectAllTabs() });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Could not scan tabs.", tabs: [] });
-      }
-      return;
-    }
-    if (msg.type === "POP_ALL_TABS") {
-      try {
-        const hasHosts = await chrome.permissions.contains({ origins: ["<all_urls>"] }).catch(() => false);
-        if (!hasHosts) {
-          const granted = await chrome.permissions.request({ origins: ["<all_urls>"] }).catch(() => false);
-          if (!granted) throw new Error("Site access is needed to pop videos from other tabs. Grant it in Options and try again.");
-        }
-        let tabIds = Array.isArray(msg.tabIds) ? msg.tabIds.filter((n) => Number.isInteger(n)) : null;
-        if (!tabIds || !tabIds.length) {
-          const all = await collectAllTabs();
-          let filtered = all.filter((t) => t.videos.length);
-          if (msg.youtubeOnly) filtered = filtered.filter((t) => t.ytid);
-          if (msg.limit) filtered = filtered.slice(0, msg.limit);
-          tabIds = filtered.map((t) => t.id);
-        }
-        if (!tabIds.length) throw new Error("No tabs with videos found. Open the YouTube links you sent, play each, then try again.");
-        const mode = msg.mode === "capture" ? "capture" : "pip";
-        const res = mode === "capture" ? await popAllTabsViaCapture(tabIds) : await popAllTabsViaPip(tabIds);
-        sendResponse(res);
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Could not pop all tabs." });
-      }
-      return;
-    }
-    if (msg.type === "OPEN_WALL") {
-      try {
-        const ids = Array.isArray(msg.ids) ? msg.ids : null;
-        sendResponse(await openWall(ids));
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "Could not open wall." });
-      }
+    if (msg.type === "OVERLAY_POP") {
+      const tabId = sender?.tab?.id;
+      const frameId = sender?.frameId ?? 0;
+      sendResponse(await toggleInTab(tabId, frameId, msg.index ?? null));
       return;
     }
   })();

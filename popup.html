@@ -7,72 +7,43 @@
 <body>
   <button id="popout" class="primary">Pop out video</button>
   <div id="status" class="status">Looking for videos…</div>
+  <div id="list" class="list"></div>
   <div id="controls" class="controls" hidden>
-    <button id="ctl-play" class="chip" title="Play / pause selected">Play/Pause</button>
+    <button id="ctl-play" class="chip" title="Play / pause">Play/Pause</button>
     <button id="ctl-mute" class="chip" title="Mute / unmute">Mute</button>
     <button id="ctl-back" class="chip" title="Back 10 seconds">-10s</button>
     <button id="ctl-fwd" class="chip" title="Forward 10 seconds">+10s</button>
     <button id="ctl-speed" class="chip" title="Cycle playback speed">1x</button>
-    <button id="ctl-loop" class="chip" title="Toggle loop">Loop</button>
   </div>
-  <div id="pro" class="controls" hidden>
-    <select id="boost" title="Audio boost">
+  <div id="audio" class="controls" hidden>
+    <label class="vol-row" title="Volume">
+      Volume
+      <input id="volume" type="range" min="0" max="100" value="100" />
+      <span id="volume-val">100%</span>
+    </label>
+    <select id="boost" title="Volume boost past 100% — with limiter, no harsh clipping">
       <option value="100">100% vol</option>
-      <option value="125">125%</option>
-      <option value="150">150%</option>
-      <option value="200">200%</option>
+      <option value="150">150% boost</option>
+      <option value="200">200% boost</option>
+      <option value="300">300% max</option>
+      <option value="400">400% extreme</option>
     </select>
     <select id="eq" title="EQ preset">
       <option value="flat">Flat EQ</option>
-      <option value="bass">Bass boost</option>
-      <option value="vocal">Vocal</option>
+      <option value="bass">Bass punch</option>
+      <option value="vocal">Vocal clear</option>
+      <option value="treble">Treble bright</option>
+      <option value="loud">Loud power</option>
+      <option value="night">Night dialogue</option>
     </select>
-    <button id="ab-a" class="chip" title="Set A">A</button>
-    <button id="ab-b" class="chip" title="Set B and loop">B</button>
-    <button id="ab-clear" class="chip" title="Clear A-B">Clear AB</button>
-    <button id="shot" class="chip" title="Screenshot frame">Screenshot</button>
-  </div>
-  <div id="bulk" class="bulk" hidden>
-    <button id="pop-selected" class="secondary small">Pop selected</button>
-    <button id="pop-all" class="secondary small">Pop all</button>
-  </div>
-  <div id="list" class="list"></div>
-  <div class="sleep-row">
-    <input id="sleep" type="number" min="0" max="240" placeholder="Sleep min" title="Sleep timer minutes" />
-    <button id="sleep-start" class="secondary small">Sleep</button>
-    <button id="sleep-cancel" class="ghost small">Cancel</button>
-    <span id="sleep-status" class="sub"></span>
-  </div>
-  <button id="capture" class="secondary">Pop out entire tab</button>
-  <button id="theater" class="secondary">Open Theater</button>
-
-  <div class="everywhere">
-    <div class="everywhere-head">
-      <strong>Everywhere</strong>
-      <small>Pop 10+ YouTube links at once. Open them first, then choose below.</small>
-    </div>
-    <button id="scan-all" class="secondary small">Scan all tabs</button>
-    <div id="everywhere-list" class="everywhere-list"></div>
-    <div class="bulk" style="display:flex;gap:6px">
-      <button id="pop-youtube-pip" class="secondary small" title="Try PiP on each YouTube tab — Chrome keeps one PiP open, so this shows the limit">Pop YouTube (PiP)</button>
-      <button id="pop-all-capture" class="secondary small" title="Floating windows via tab capture — works for 10+">Float all (Capture)</button>
-    </div>
-    <button id="open-wall" class="primary small" title="One wall window with all YouTube embeds — best for 10+">Open YouTube Wall (10+)</button>
-    <div id="everywhere-status" class="sub"></div>
-  </div>
-
-  <div class="site-row">
-    <span id="site-label">This site: default</span>
-    <select id="site-rule" title="Per-site rule">
-      <option value="default">Default</option>
-      <option value="always">Always pop</option>
-      <option value="never">Never auto</option>
-    </select>
+    <button id="noise" class="chip" title="Toggle noise gate / voice isolation">Noise Gate</button>
+    <button id="transcript" class="chip" title="Start live transcript">Transcript</button>
+    <button id="transcript-export" class="chip" title="Download transcript">Export TXT</button>
+    <div id="transcript-status" class="sub" style="font-size:10px;color:#9ca3af;margin-top:4px;"></div>
   </div>
   <div class="footer">
     <div class="hints">
-      <div><kbd>Alt</kbd>+<kbd>P</kbd> pops the video · Side Panel is your theater</div>
-      <div>Chrome allows one native PiP — use Capture or Wall for 10+.</div>
+      <div><kbd>Alt</kbd>+<kbd>P</kbd> pops the video · hover the video for on-page Pop</div>
     </div>
     <button id="options" class="link">Options</button>
   </div>

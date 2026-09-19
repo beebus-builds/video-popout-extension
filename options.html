@@ -8,7 +8,7 @@
 <body>
   <main>
     <h1>Video Popout</h1>
-    <p class="lede">Make it yours — no tracking, everything stays in your browser.</p>
+    <p class="lede">Pop video + volume essentials — no tracking, everything stays in your browser.</p>
 
     <label class="row">
       <span>
@@ -36,91 +36,11 @@
 
     <label class="row">
       <span>
-        <strong>Auto re-popout playlists</strong>
-        <small>Best-effort: tries to re-enter PiP after navigation (YouTube, Twitch). Needs site access.</small>
-      </span>
-      <input type="checkbox" id="autoRepopout" />
-    </label>
-
-    <label class="row">
-      <span>
-        <strong>Auto-pop when switching tabs</strong>
-        <small>Best-effort: pops the playing video when you leave the tab.</small>
-      </span>
-      <input type="checkbox" id="autoPipOnSwitch" />
-    </label>
-
-    <label class="row">
-      <span>
-        <strong>Auto-pause background tabs</strong>
-        <small>Pauses videos when you leave the tab. Respects per-site “Never”.</small>
-      </span>
-      <input type="checkbox" id="autoPauseBackground" />
-    </label>
-
-    <label class="row">
-      <span>
-        <strong>Resume on return</strong>
-        <small>Resumes the paused video when you come back.</small>
-      </span>
-      <input type="checkbox" id="resumeOnReturn" />
-    </label>
-
-    <div id="permRow" class="perm" hidden>
-      <span id="permStatus">Site access is required for automatic popout.</span>
-      <button id="grantPerms" class="secondary">Grant site access</button>
-    </div>
-
-    <label class="row">
-      <span>
-        <strong>Combined window size</strong>
-        <small>Size of the multi-video floating window.</small>
-      </span>
-      <select id="docPipSize">
-        <option value="compact">Compact</option>
-        <option value="balanced">Balanced</option>
-        <option value="large">Large</option>
-      </select>
-    </label>
-
-    <label class="row">
-      <span>
-        <strong>Include tab audio in whole-tab popout</strong>
-        <small>Capture sound along with the tab preview.</small>
-      </span>
-      <input type="checkbox" id="captureAudio" />
-    </label>
-
-    <label class="row">
-      <span>
         <strong>Show right-click menu</strong>
-        <small>“Pop out video”, “Pop out all videos” and “Pop out entire tab”.</small>
+        <small>“Pop out video” on videos.</small>
       </span>
       <input type="checkbox" id="showContextMenu" />
     </label>
-
-    <div class="row static">
-      <span>
-        <strong>Keyboard shortcuts</strong>
-        <small>Alt+P pops the video. Assign a key for whole-tab popout.</small>
-      </span>
-      <button id="shortcuts" class="secondary">Manage shortcuts</button>
-    </div>
-
-    <div class="row static">
-      <span>
-        <strong>Backup &amp; sync</strong>
-        <small>Settings sync via your Google account. Export or import as JSON.</small>
-      </span>
-      <span style="display:flex;gap:8px">
-        <button id="export" class="secondary">Export</button>
-        <label class="secondary" style="padding:7px 10px;cursor:pointer">Import<input id="import" type="file" accept=".json" hidden /></label>
-      </span>
-    </div>
-
-    <h2>Per-site rules</h2>
-    <p class="lede">“Always” auto-pops the site on navigation. “Never” disables all automatic behavior there. Manual popout always works.</p>
-    <div id="rules" class="rules"></div>
 
     <p style="margin-top:16px"><a href="welcome.html">Welcome</a> · <a href="privacy.html">Privacy</a></p>
     <div id="status" class="status"></div>
