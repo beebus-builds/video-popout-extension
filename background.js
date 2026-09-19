@@ -309,7 +309,8 @@ async function runProAudioMain(idxs, cmd, val) {
         count++;
       } else if (cmd === "transcript-toggle") {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { lastError = "SpeechRecognition not supported."; continue; }
+        if (!SR) { lastError = "SpeechRecognition not available. Needs HTTPS and mic permission. Chrome only supports it on secure sites."; continue; }
+        if (!window.isSecureContext) { lastError = "SpeechRecognition requires HTTPS. This page is not secure."; continue; }
         const state = window.__popoutTranscript.get(v) || { active: false, text: "", rec: null };
         if (!state.active) {
           try {
@@ -324,7 +325,9 @@ async function runProAudioMain(idxs, cmd, val) {
               }
               state.text += t;
             };
-            recog.onerror = () => {};
+            recog.onerror = (e) => {
+              lastError = "Speech recognition error: " + (e.error || "unknown");
+            };
             recog.start();
             state.rec = recog;
             state.active = true;
@@ -333,7 +336,7 @@ async function runProAudioMain(idxs, cmd, val) {
             transcriptText = state.text;
             count++;
           } catch (e) {
-            lastError = "Failed to start transcript: " + (e.message || e);
+            lastError = "Failed to start transcript: " + (e.message || e) + ". Try clicking the page once to grant user gesture.";
           }
         } else {
           try { state.rec?.stop(); } catch {}
