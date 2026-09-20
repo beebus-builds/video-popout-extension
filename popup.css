@@ -54,6 +54,20 @@ button.secondary:disabled { opacity: 0.6; cursor: default; }
   gap: 6px;
 }
 
+.vol-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 100%;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.vol-row input[type="range"] {
+  flex: 1;
+  accent-color: #e11d48;
+}
+
 button.chip {
   flex: 1 1 30%;
   padding: 6px 4px;
@@ -276,6 +290,9 @@ kbd {
   font-family: inherit;
 }
 
+.caption-box { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 8px; background: rgba(128,128,128,0.08); max-height: 160px; overflow: auto; }
+.caption-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+.caption-text { font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: #e5e7eb; max-height: 120px; overflow: auto; }
 @media (prefers-color-scheme: dark) {
   body { background: #111214; color: #e5e7eb; }
 }

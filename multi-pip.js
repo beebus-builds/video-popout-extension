@@ -80,6 +80,10 @@
   } catch (error) {
     try { delete window.__popoutVideoIndices; } catch { window.__popoutVideoIndices = undefined; }
     try { delete window.__popoutWindowSize; } catch { window.__popoutWindowSize = undefined; }
-    return { ok: false, error: error && error.message ? error.message : "Could not pop out these videos." };
+    const raw = error && error.message ? error.message : "Could not pop out these videos.";
+    if (/user gesture|user activation|handling a user|transient activation|not allowed/i.test(raw)) {
+      return { ok: false, code: "NEEDS_GESTURE", error: "Chrome blocked the combined window: it needs a recent click on the page. Click Play on a video once, then Pop again within a few seconds. Alternative: Pop out entire tab (Capture)." };
+    }
+    return { ok: false, error: raw };
   }
 })();

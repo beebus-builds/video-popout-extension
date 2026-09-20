@@ -37,6 +37,12 @@
       <option value="night">Night dialogue</option>
     </select>
     <button id="noise" class="chip" title="Toggle noise gate / voice isolation">Noise Gate</button>
+    <button id="captions" class="chip" title="Show captions in PiP (native + YouTube auto)">CC</button>
+    <button id="grab-captions" class="chip" title="Copy captions transcript to clipboard">Copy CC</button>
+  </div>
+  <div id="caption-box" class="caption-box" hidden>
+    <div class="caption-head">Captions <button id="caption-close" class="ghost small">×</button></div>
+    <div id="caption-text" class="caption-text"></div>
   </div>
   <div class="footer">
     <div class="hints">

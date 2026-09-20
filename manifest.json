@@ -4,6 +4,28 @@
   "version": "2.0.0",
   "description": "Pop any video into a floating window, with volume boost and EQ.",
   "permissions": ["contextMenus", "scripting", "activeTab", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["main-registry.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["page-overlay.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pip.js", "collect-videos.js", "pro-controls.js", "page-overlay.js", "main-registry.js", "captions.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   },

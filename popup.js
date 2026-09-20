@@ -34,6 +34,8 @@ function describe(video) {
   else if (!video.ready) bits.push("loading");
   else bits.push("paused");
   if (video.drm) bits.push("DRM");
+  if (video.hasCaptions) bits.push(video.captionShowing ? "CC on" : "CC");
+  if (video.captionCustom) bits.push("YT-CC");
   if (video.width && video.height) bits.push(`${video.width}x${video.height}`);
   return bits.join(" · ");
 }
@@ -214,6 +216,78 @@ optionsBtn.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
+// --- captions ---
+const captionsBtn = document.getElementById("captions");
+const grabBtn = document.getElementById("grab-captions");
+const captionBox = document.getElementById("caption-box");
+const captionText = document.getElementById("caption-text");
+const captionClose = document.getElementById("caption-close");
+let captionsOn = false;
+
+function updateCaptionBtn() {
+  if (!captionsBtn) return;
+  const hasAny = videos.some(v => v.hasCaptions);
+  captionsBtn.disabled = !hasAny;
+  captionsBtn.textContent = captionsOn ? "CC ON" : "CC";
+  captionsBtn.classList.toggle("active", captionsOn);
+  captionsBtn.title = hasAny ? (captionsOn ? "Captions showing in PiP — click to hide" : "Enable captions in PiP (native + YouTube auto)") : "No captions detected — turn on CC on page first";
+  if (grabBtn) grabBtn.disabled = !videos.length;
+}
+
+captionsBtn?.addEventListener("click", async () => {
+  const ts = targets();
+  if (!ts.length) return;
+  const enable = !captionsOn;
+  setStatus(enable ? "Enabling captions…" : "Hiding captions…");
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "CAPTION_TOGGLE", targets: ts, enable });
+    if (!res?.ok) throw new Error(res?.error || "Caption toggle failed.");
+    captionsOn = enable;
+    updateCaptionBtn();
+    setStatus(res.count ? `Captions ${enable ? "ON" : "OFF"} for ${res.count} video(s). Pop again to see in PiP.` : `Captions ${enable ? "ON" : "OFF"}.`);
+    // re-scan to update dot state
+    try {
+      const r2 = await chrome.runtime.sendMessage({ type: "LIST_VIDEOS" });
+      if (r2?.ok) { videos = r2.videos || []; renderList(); updateCaptionBtn(); }
+    } catch {}
+  } catch (e) {
+    setStatus(e?.message || "Caption toggle failed.", true);
+  }
+});
+
+grabBtn?.addEventListener("click", async () => {
+  const ts = targets().slice(0, 1);
+  if (!ts.length) return;
+  setStatus("Grabbing captions…");
+  captionBox.hidden = true;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "CAPTION_GET", targets: ts });
+    if (!res?.ok) throw new Error(res?.error || "No captions.");
+    const caps = res.captions || [];
+    const allCues = caps.flatMap(c => c.cues || []);
+    // also include raw tracks cues
+    for (const c of caps) if (c.tracks) for (const t of c.tracks) if (t.cues) allCues.push(...t.cues);
+    let text = "";
+    if (allCues.length) {
+      allCues.sort((a,b)=> (a.start||0)-(b.start||0));
+      text = allCues.map(c=> c.text).join("\n").trim();
+      // dedup consecutive
+      text = text.split("\n").filter((line,i,arr)=> line.trim() && arr.indexOf(line)===i).join("\n");
+    }
+    if (!text) {
+      // fallback customText
+      text = caps.map(c=> c.customText || "").filter(Boolean).join("\n").trim();
+    }
+    if (!text) text = "(No cue text yet — play video with CC on, then Copy again.)";
+    captionText.textContent = text;
+    captionBox.hidden = false;
+    try { await navigator.clipboard.writeText(text); setStatus("Captions copied to clipboard."); } catch { setStatus("Captions ready — select and copy."); }
+  } catch (e) {
+    setStatus(e?.message || "Could not grab captions. Turn on CC on page first.", true);
+  }
+});
+captionClose?.addEventListener("click", () => { captionBox.hidden = true; });
+
 (async () => {
   try {
     const res = await chrome.runtime.sendMessage({ type: "LIST_VIDEOS" });
@@ -235,6 +309,7 @@ optionsBtn.addEventListener("click", () => {
       setStatus(`${videos.length} videos — click one to pop it.`);
     }
     renderList();
+    updateCaptionBtn();
     void restoreAudioUI();
   } catch (error) {
     setStatus(error?.message || "Cannot access this page.", true);
